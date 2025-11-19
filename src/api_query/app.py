@@ -16,7 +16,7 @@ def lambda_handler(event, context):
         # Extrai o ID do produto da requisição API Gateway
         product_id = event['pathParameters']['productId']
 
-        # 1. Buscar Preço Atual
+        # 1. Buscar Preço Atual (Busca pela PK da Tabela Produtos)
         produtos_table = dynamodb.Table(PRODUTOS_TABLE)
         produto = produtos_table.get_item(Key={'productId': product_id}).get('Item', None)
         
@@ -26,10 +26,13 @@ def lambda_handler(event, context):
                 'body': json.dumps({'message': f'Produto {product_id} não encontrado.'})
             }
 
-        # 2. Buscar Histórico (Usando GSI ou KeyCondition - usaremos a chave principal por enquanto)
+        # 2. Buscar Histórico (Busca pelo GSI 'ProductIdIndex')
         historico_table = dynamodb.Table(HISTORICO_TABLE)
         historico_response = historico_table.query(
-            KeyConditionExpression=Key('productId').eq(product_id) # Atenção: historyId é a PK, mas usaremos Query de Exemplo
+            IndexName='ProductIdIndex', # <-- Usamos o Índice Secundário Global
+            KeyConditionExpression=Key('productId').eq(product_id),
+            # Ordena do mais recente (false)
+            ScanIndexForward=False 
         )
 
         return {

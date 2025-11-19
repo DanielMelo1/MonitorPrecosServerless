@@ -37,7 +37,20 @@ Resources:
         WriteCapacityUnits: 5
       Tags:
         Ambiente: Dev
-  
+      
+      # 💥 NOVO: Global Secondary Index (GSI)
+      # Isso permite buscar registros de histórico por 'productId', essencial para a API.
+      GlobalSecondaryIndexes:
+        - IndexName: ProductIdIndex
+          KeySchema:
+            - AttributeName: productId # O novo atributo para busca
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+          
   # 2. Funções Lambda (O Código da Aplicação)
   # ----------------------------------------------------
   CollectDataFunction:
@@ -83,6 +96,38 @@ Resources:
             TableName: !Ref ProdutosTable
         - DynamoDBReadPolicy:
             TableName: !Ref HistoricoPrecosTable
+            IndexName: ProductIdIndex # A Lambda precisa de permissão para ler o GSI
+
+  # 3. Máquina de Estado do Step Functions
+  # ----------------------------------------------------
+  PriceMonitoringStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionSubstitutions:
+        CollectArn: !GetAtt CollectDataFunction.Arn
+        ProcessArn: !GetAtt ProcessDataFunction.Arn
+      Definition:
+        Comment: Fluxo de Monitoramento e Processamento de Preços
+        StartAt: ColetarPreco
+        States:
+          ColetarPreco:
+            Type: Task
+            Resource: ${CollectArn}
+            Next: ProcessarESalvar
+          ProcessarESalvar:
+            Type: Task
+            Resource: ${ProcessArn}
+            End: true
+      
+      # Permissões da Role IAM do Step Functions
+      Policies:
+        - Statement:
+            Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource: 
+              - !GetAtt CollectDataFunction.Arn
+              - !GetAtt ProcessDataFunction.Arn
 
 Outputs:
   DynamoDBTables:
