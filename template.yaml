@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Projeto Monitor de Preços Serverless - Back-end
+
+Globals:
+  Function:
+    Runtime: python3.9
+    Timeout: 30
+    MemorySize: 128
+
+Resources:
+  # 1. Tabelas DynamoDB (Nosso banco de dados)
+  # ----------------------------------------------------
+  ProdutosTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: MonitorPrecos-Produtos
+      PrimaryKey:
+        Name: productId
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+        Ambiente: Dev
+
+  HistoricoPrecosTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      TableName: MonitorPrecos-Historico
+      PrimaryKey:
+        Name: historyId
+        Type: String
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+        Ambiente: Dev
+  
+  # 2. Funções Lambda (O Código da Aplicação)
+  # ----------------------------------------------------
+  CollectDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      CodeUri: src/collect_data/
+      Description: Função para simular a coleta de um novo preço de produto.
+      Environment:
+        Variables:
+          PRODUTOS_TABLE: !Ref ProdutosTable
+          
+  ProcessDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      CodeUri: src/process_data/
+      Description: Verifica se o preço mudou e atualiza as tabelas do DynamoDB.
+      Environment:
+        Variables:
+          PRODUTOS_TABLE: !Ref ProdutosTable
+          HISTORICO_TABLE: !Ref HistoricoPrecosTable
+      Policies:
+        # Permissões de escrita e leitura
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProdutosTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref HistoricoPrecosTable
+
+  ApiQueryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      CodeUri: src/api_query/
+      Description: Função para expor o preço e histórico via API GET.
+      Environment:
+        Variables:
+          PRODUTOS_TABLE: !Ref ProdutosTable
+          HISTORICO_TABLE: !Ref HistoricoPrecosTable
+      Policies:
+        # Permissões apenas de leitura
+        - DynamoDBReadPolicy:
+            TableName: !Ref ProdutosTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref HistoricoPrecosTable
+
+Outputs:
+  DynamoDBTables:
+    Description: "Nomes das Tabelas DynamoDB criadas"
+    Value: !Join [", ", [!Ref ProdutosTable, !Ref HistoricoPrecosTable]]
