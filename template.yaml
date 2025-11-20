@@ -5,7 +5,7 @@ Description: >
 
 Globals:
   Function:
-    Runtime: python3.9
+    Runtime: python3.12
     Timeout: 30
     MemorySize: 128
 
@@ -13,37 +13,36 @@ Resources:
   # 1. Tabelas DynamoDB (Nosso banco de dados)
   # ----------------------------------------------------
   ProdutosTable:
-    Type: AWS::Serverless::SimpleTable
+    Type: AWS::DynamoDB::Table
     Properties:
       TableName: MonitorPrecos-Produtos
-      PrimaryKey:
-        Name: productId
-        Type: String
+      BillingMode: PROVISIONED
+      AttributeDefinitions:
+        - AttributeName: productId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: productId
+          KeyType: HASH
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
       Tags:
-        Ambiente: Dev
+        - Key: Ambiente
+          Value: Dev
 
   HistoricoPrecosTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: MonitorPrecos-Historico
       BillingMode: PROVISIONED
-      
-      # Definição dos atributos usados nas chaves
       AttributeDefinitions:
         - AttributeName: historyId
           AttributeType: S
         - AttributeName: productId
           AttributeType: S
-      
-      # Chave primária da tabela
       KeySchema:
         - AttributeName: historyId
           KeyType: HASH
-      
-      # Global Secondary Index para buscar por productId
       GlobalSecondaryIndexes:
         - IndexName: ProductIdIndex
           KeySchema:
@@ -54,11 +53,9 @@ Resources:
           ProvisionedThroughput:
             ReadCapacityUnits: 5
             WriteCapacityUnits: 5
-      
       ProvisionedThroughput:
         ReadCapacityUnits: 5
         WriteCapacityUnits: 5
-      
       Tags:
         - Key: Ambiente
           Value: Dev

@@ -2,10 +2,17 @@ import os
 import boto3
 import json
 from boto3.dynamodb.conditions import Key
+from decimal import Decimal
 
 dynamodb = boto3.resource('dynamodb')
 PRODUTOS_TABLE = os.environ.get('PRODUTOS_TABLE')
 HISTORICO_TABLE = os.environ.get('HISTORICO_TABLE')
+
+# Helper para converter Decimal para JSON
+def decimal_default(obj):
+    if isinstance(obj, Decimal):
+        return float(obj)
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
 def lambda_handler(event, context):
     """
@@ -29,9 +36,8 @@ def lambda_handler(event, context):
         # 2. Buscar Histórico (Busca pelo GSI 'ProductIdIndex')
         historico_table = dynamodb.Table(HISTORICO_TABLE)
         historico_response = historico_table.query(
-            IndexName='ProductIdIndex', # <-- Usamos o Índice Secundário Global
+            IndexName='ProductIdIndex',
             KeyConditionExpression=Key('productId').eq(product_id),
-            # Ordena do mais recente (false)
             ScanIndexForward=False 
         )
 
@@ -41,7 +47,7 @@ def lambda_handler(event, context):
             'body': json.dumps({
                 'produtoAtual': produto,
                 'historico': historico_response.get('Items', [])
-            })
+            }, default=decimal_default)  # <-- Adicionado aqui
         }
 
     except Exception as e:
