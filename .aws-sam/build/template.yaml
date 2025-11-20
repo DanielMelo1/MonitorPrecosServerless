@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: "Projeto Monitor de Pre\xE7os Serverless - Back-end\n"
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 128
+Resources:
+  ProdutosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: MonitorPrecos-Produtos
+      BillingMode: PROVISIONED
+      AttributeDefinitions:
+      - AttributeName: productId
+        AttributeType: S
+      KeySchema:
+      - AttributeName: productId
+        KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+      - Key: Ambiente
+        Value: Dev
+  HistoricoPrecosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: MonitorPrecos-Historico
+      BillingMode: PROVISIONED
+      AttributeDefinitions:
+      - AttributeName: historyId
+        AttributeType: S
+      - AttributeName: productId
+        AttributeType: S
+      KeySchema:
+      - AttributeName: historyId
+        KeyType: HASH
+      GlobalSecondaryIndexes:
+      - IndexName: ProductIdIndex
+        KeySchema:
+        - AttributeName: productId
+          KeyType: HASH
+        Projection:
+          ProjectionType: ALL
+        ProvisionedThroughput:
+          ReadCapacityUnits: 5
+          WriteCapacityUnits: 5
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      Tags:
+      - Key: Ambiente
+        Value: Dev
+  CollectDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      CodeUri: CollectDataFunction
+      Description: "Fun\xE7\xE3o para simular a coleta de um novo pre\xE7o de produto."
+      Environment:
+        Variables:
+          PRODUTOS_TABLE:
+            Ref: ProdutosTable
+    Metadata:
+      SamResourceId: CollectDataFunction
+  ProcessDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      CodeUri: ProcessDataFunction
+      Description: "Verifica se o pre\xE7o mudou e atualiza as tabelas do DynamoDB."
+      Environment:
+        Variables:
+          PRODUTOS_TABLE:
+            Ref: ProdutosTable
+          HISTORICO_TABLE:
+            Ref: HistoricoPrecosTable
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: ProdutosTable
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: HistoricoPrecosTable
+    Metadata:
+      SamResourceId: ProcessDataFunction
+  ApiQueryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: app.lambda_handler
+      CodeUri: ApiQueryFunction
+      Description: "Fun\xE7\xE3o para expor o pre\xE7o e hist\xF3rico via API GET."
+      Environment:
+        Variables:
+          PRODUTOS_TABLE:
+            Ref: ProdutosTable
+          HISTORICO_TABLE:
+            Ref: HistoricoPrecosTable
+      Policies:
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: ProdutosTable
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: HistoricoPrecosTable
+    Metadata:
+      SamResourceId: ApiQueryFunction
+  PriceMonitoringStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionSubstitutions:
+        CollectArn:
+          Fn::GetAtt:
+          - CollectDataFunction
+          - Arn
+        ProcessArn:
+          Fn::GetAtt:
+          - ProcessDataFunction
+          - Arn
+      Definition:
+        Comment: "Fluxo de Monitoramento e Processamento de Pre\xE7os"
+        StartAt: ColetarPreco
+        States:
+          ColetarPreco:
+            Type: Task
+            Resource: ${CollectArn}
+            Next: ProcessarESalvar
+          ProcessarESalvar:
+            Type: Task
+            Resource: ${ProcessArn}
+            End: true
+      Policies:
+      - Statement:
+          Effect: Allow
+          Action:
+          - lambda:InvokeFunction
+          Resource:
+          - Fn::GetAtt:
+            - CollectDataFunction
+            - Arn
+          - Fn::GetAtt:
+            - ProcessDataFunction
+            - Arn
+Outputs:
+  DynamoDBTables:
+    Description: Nomes das Tabelas DynamoDB criadas
+    Value:
+      Fn::Join:
+      - ', '
+      - - Ref: ProdutosTable
+        - Ref: HistoricoPrecosTable
