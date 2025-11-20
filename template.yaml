@@ -103,6 +103,12 @@ Resources:
             TableName: !Ref ProdutosTable
         - DynamoDBReadPolicy:
             TableName: !Ref HistoricoPrecosTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /produtos/{productId}
+            Method: get
 
   # 3. Máquina de Estado do Step Functions
   # ----------------------------------------------------
@@ -138,3 +144,7 @@ Outputs:
   DynamoDBTables:
     Description: "Nomes das Tabelas DynamoDB criadas"
     Value: !Join [", ", [!Ref ProdutosTable, !Ref HistoricoPrecosTable]]
+  
+  ApiEndpoint:
+    Description: "URL do API Gateway"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/produtos/{productId}"

@@ -2,8 +2,8 @@ import os
 import boto3
 from datetime import datetime
 import uuid
+from decimal import Decimal
 
-# Inicializa o cliente DynamoDB e pega os nomes das tabelas das variáveis de ambiente
 dynamodb = boto3.resource('dynamodb')
 PRODUTOS_TABLE = os.environ.get('PRODUTOS_TABLE')
 HISTORICO_TABLE = os.environ.get('HISTORICO_TABLE')
@@ -15,8 +15,7 @@ def get_last_price(product_id):
         Key={'productId': product_id},
         ProjectionExpression='lastKnownPrice'
     )
-    # Retorna o preço se existir. Caso contrário (primeira vez), retorna 0.00.
-    return response.get('Item', {}).get('lastKnownPrice', 0.00)
+    return response.get('Item', {}).get('lastKnownPrice', Decimal('0.00'))
 
 def update_tables(product_id, current_price, last_price):
     """ 
@@ -24,7 +23,7 @@ def update_tables(product_id, current_price, last_price):
     na tabela de Histórico.
     """
     
-    # 1. Atualiza Tabela de Produtos (put_item sobrescreve ou cria)
+    # 1. Atualiza Tabela de Produtos
     produtos_table = dynamodb.Table(PRODUTOS_TABLE)
     produtos_table.put_item(
         Item={
@@ -38,7 +37,7 @@ def update_tables(product_id, current_price, last_price):
     historico_table = dynamodb.Table(HISTORICO_TABLE)
     historico_table.put_item(
         Item={
-            'historyId': str(uuid.uuid4()), # Garantindo ID único
+            'historyId': str(uuid.uuid4()),
             'productId': product_id,
             'oldPrice': last_price,
             'newPrice': current_price,
@@ -52,7 +51,8 @@ def lambda_handler(event, context):
     """ Processa os dados de preço coletados. """
     
     product_id = event['productId']
-    current_price = event['currentPrice']
+    # Converte float para Decimal (DynamoDB não aceita float)
+    current_price = Decimal(str(event['currentPrice']))
 
     # 1. Busca o último preço
     last_price = get_last_price(product_id)
@@ -66,9 +66,8 @@ def lambda_handler(event, context):
     else:
         print(f"Preço do produto {product_id} não mudou: {current_price}")
 
-    # Retorna a flag para o Step Functions
     return {
         'productId': product_id,
-        'currentPrice': current_price,
+        'currentPrice': float(current_price),  # Converte de volta para JSON
         'priceChanged': price_changed 
     }
