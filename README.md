@@ -160,7 +160,7 @@ sam delete --stack-name PriceMonitorStack
 **Daniel Melo**
 
 - GitHub: [@DanielMelo1](https://github.com/DanielMelo1)
-- LinkedIn: [Daniel Melo](https://www.linkedin.com/in/seu-perfil)
+- LinkedIn: [Daniel Melo](https://www.linkedin.com/in/danielaugustormelo/)
 
 ## 📄 Licença
 
