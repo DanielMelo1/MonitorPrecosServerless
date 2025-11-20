@@ -105,6 +105,12 @@ Resources:
       - DynamoDBReadPolicy:
           TableName:
             Ref: HistoricoPrecosTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /produtos/{productId}
+            Method: get
     Metadata:
       SamResourceId: ApiQueryFunction
   PriceMonitoringStateMachine:
@@ -151,3 +157,7 @@ Outputs:
       - ', '
       - - Ref: ProdutosTable
         - Ref: HistoricoPrecosTable
+  ApiEndpoint:
+    Description: URL do API Gateway
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/produtos/{productId}
