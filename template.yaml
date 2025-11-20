@@ -26,30 +26,42 @@ Resources:
         Ambiente: Dev
 
   HistoricoPrecosTable:
-    Type: AWS::Serverless::SimpleTable
+    Type: AWS::DynamoDB::Table
     Properties:
       TableName: MonitorPrecos-Historico
-      PrimaryKey:
-        Name: historyId
-        Type: String
-      ProvisionedThroughput:
-        ReadCapacityUnits: 5
-        WriteCapacityUnits: 5
-      Tags:
-        Ambiente: Dev
+      BillingMode: PROVISIONED
       
-      # 💥 NOVO: Global Secondary Index (GSI)
-      # Isso permite buscar registros de histórico por 'productId', essencial para a API.
+      # Definição dos atributos usados nas chaves
+      AttributeDefinitions:
+        - AttributeName: historyId
+          AttributeType: S
+        - AttributeName: productId
+          AttributeType: S
+      
+      # Chave primária da tabela
+      KeySchema:
+        - AttributeName: historyId
+          KeyType: HASH
+      
+      # Global Secondary Index para buscar por productId
       GlobalSecondaryIndexes:
         - IndexName: ProductIdIndex
           KeySchema:
-            - AttributeName: productId # O novo atributo para busca
+            - AttributeName: productId
               KeyType: HASH
           Projection:
             ProjectionType: ALL
           ProvisionedThroughput:
             ReadCapacityUnits: 5
             WriteCapacityUnits: 5
+      
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+      
+      Tags:
+        - Key: Ambiente
+          Value: Dev
           
   # 2. Funções Lambda (O Código da Aplicação)
   # ----------------------------------------------------
@@ -74,7 +86,6 @@ Resources:
           PRODUTOS_TABLE: !Ref ProdutosTable
           HISTORICO_TABLE: !Ref HistoricoPrecosTable
       Policies:
-        # Permissões de escrita e leitura
         - DynamoDBCrudPolicy:
             TableName: !Ref ProdutosTable
         - DynamoDBCrudPolicy:
@@ -91,12 +102,10 @@ Resources:
           PRODUTOS_TABLE: !Ref ProdutosTable
           HISTORICO_TABLE: !Ref HistoricoPrecosTable
       Policies:
-        # Permissões apenas de leitura
         - DynamoDBReadPolicy:
             TableName: !Ref ProdutosTable
         - DynamoDBReadPolicy:
             TableName: !Ref HistoricoPrecosTable
-            IndexName: ProductIdIndex # A Lambda precisa de permissão para ler o GSI
 
   # 3. Máquina de Estado do Step Functions
   # ----------------------------------------------------
@@ -119,7 +128,6 @@ Resources:
             Resource: ${ProcessArn}
             End: true
       
-      # Permissões da Role IAM do Step Functions
       Policies:
         - Statement:
             Effect: Allow
